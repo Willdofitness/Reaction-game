@@ -1,0 +1,250 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+    <meta name="theme-color" content="#111827" />
+    <link rel="manifest" href="manifest.webmanifest">
+    <link rel="apple-touch-icon" href="icon-192.png">
+    <title>Reaction Game</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+      html, body { height: 100%; background: #111827; }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+
+    <!-- React + Babel -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <script type="text/babel">
+      const { useState, useRef } = React;
+
+      function ReactionGame() {
+        const [message, setMessage] = useState("Press Start to Play");
+        const [startTime, setStartTime] = useState(null);
+        const [reactionTime, setReactionTime] = useState(null);
+        const [difficulty, setDifficulty] = useState("easy");
+        const [score, setScore] = useState([]);
+        const [targetColor, setTargetColor] = useState(null);
+        const [wrongFlash, setWrongFlash] = useState(false);
+        const [shuffledColors, setShuffledColors] = useState(["red","blue","green"]);
+        const [instructionColor, setInstructionColor] = useState("text-green-300");
+        const [gameOver, setGameOver] = useState(false);
+
+        const hardTimeoutRef = useRef(null);
+        const clearHardTimer = () => {
+          if (hardTimeoutRef.current) {
+            clearTimeout(hardTimeoutRef.current);
+            hardTimeoutRef.current = null;
+          }
+        };
+
+        const difficultySettings = {
+          easy: { minDelay: 1500, maxDelay: 3000 },
+          medium: { minDelay: 1000, maxDelay: 2000 },
+          hard: { minDelay: 500, maxDelay: 1500 },
+          extreme: { minDelay: 500, maxDelay: 1500 },
+        };
+
+        const colors = ["red","blue","green"];
+
+        const shuffleArray = (arr) =>
+          arr.map(a => ({ sort: Math.random(), value: a }))
+             .sort((a,b)=>a.sort-b.sort)
+             .map(a=>a.value);
+
+        const pickRandomInstructionColor = (chosenColor) => {
+          if (Math.random() < 0.5) {
+            if (chosenColor === "red") return "text-red-400";
+            if (chosenColor === "blue") return "text-blue-400";
+            if (chosenColor === "green") return "text-green-400";
+          }
+          const options = ["text-red-400","text-blue-400","text-green-400"];
+          return options[Math.floor(Math.random() * options.length)];
+        };
+
+        const randomColorName = () => colors[Math.floor(Math.random() * colors.length)];
+
+        const colorToBg = { red: "bg-red-500", blue: "bg-blue-500", green: "bg-green-500" };
+        const colorToText = { red: "text-red-400", blue: "text-blue-400", green: "text-green-400" };
+
+        const startGame = () => {
+          setReactionTime(null);
+          setMessage("Wait for it...");
+          setWrongFlash(false);
+          if (gameOver) setScore([]);
+          clearHardTimer();
+
+          const { minDelay, maxDelay } = difficultySettings[difficulty];
+          let delay = Math.floor(Math.random() * (maxDelay - minDelay) + minDelay);
+          if (difficulty === "hard" || difficulty === "extreme") delay = 0;
+
+          setTimeout(() => {
+            setStartTime(Date.now());
+            if (difficulty !== "easy") setShuffledColors(shuffleArray([...colors]));
+            else setShuffledColors([...colors]);
+
+            if (difficulty === "extreme") {
+              const inkName = randomColorName();
+              const wordName = randomColorName();
+              setTargetColor(inkName);
+              setInstructionColor(colorToText[inkName]);
+              setMessage(`Click the ${wordName.charAt(0).toUpperCase() + wordName.slice(1)} Box!`);
+              hardTimeoutRef.current = setTimeout(() => {
+                setWrongFlash(true);
+                setMessage("Too slow!");
+                setStartTime(null);
+                setTimeout(() => { setWrongFlash(false); resetGame(); }, 800);
+              }, ((score.length + 1) > 20 ? 1500 : 2000));
+            } else {
+              const chosenColor = randomColorName();
+              setTargetColor(chosenColor);
+              setMessage(`Click the ${chosenColor.charAt(0).toUpperCase() + chosenColor.slice(1)} Box!`);
+              if (difficulty === "hard") {
+                setInstructionColor(pickRandomInstructionColor(chosenColor));
+                hardTimeoutRef.current = setTimeout(() => {
+                  setWrongFlash(true);
+                  setMessage("Too slow!");
+                  setStartTime(null);
+                  setTimeout(() => { setWrongFlash(false); resetGame(); }, 800);
+                }, ((score.length + 1) > 20 ? 1500 : 2000));
+              } else {
+                setInstructionColor("text-yellow-300");
+              }
+            }
+            setGameOver(false);
+          }, delay);
+        };
+
+        const recordReaction = (time) => {
+          setReactionTime(time);
+          setScore(prev => [...prev, time]);
+          setStartTime(null);
+        };
+
+        const resetGame = () => {
+          setMessage("Wrong box! Press Start to Play again.");
+          setReactionTime(null);
+          setStartTime(null);
+          setTargetColor(null);
+          setGameOver(true);
+        };
+
+        const handleColorClick = (color) => {
+          if (!startTime) return;
+          clearHardTimer();
+
+          if (color === targetColor) {
+            const rt = Date.now() - startTime;
+            if ((difficulty === "hard" || difficulty === "extreme") && rt > ((score.length + 1) > 20 ? 1500 : 2000)) {
+              setWrongFlash(true);
+              setMessage("Too slow!");
+              setStartTime(null);
+              setTimeout(() => { setWrongFlash(false); resetGame(); }, 800);
+              return;
+            }
+            recordReaction(rt);
+            setMessage("Perfect!");
+            if (difficulty === "hard" || difficulty === "extreme") {
+              startGame();
+            }
+          } else {
+            setWrongFlash(true);
+            setMessage("Wrong!");
+            setStartTime(null);
+            setTimeout(() => { setWrongFlash(false); resetGame(); }, 800);
+          }
+        };
+
+        const averageScore = score.length > 0 ? (score.reduce((a,b)=>a+b,0) / score.length).toFixed(2) : null;
+        const bestThisRun = score.length > 0 ? Math.min(...score) : null;
+        const bestIndex = bestThisRun !== null ? score.indexOf(bestThisRun) : -1;
+
+        return (
+          <div className="flex flex-col items-center gap-4 p-6 bg-gray-900 min-h-screen text-white">
+            <h1 className="text-2xl font-bold text-yellow-300">Reaction Game</h1>
+
+            <div className="flex gap-2">
+              <button className="px-4 py-2 bg-blue-500 text-white rounded border-2 border-yellow-300 shadow-lg" onClick={startGame}>Start</button>
+              <select className="px-2 py-1 border rounded text-white bg-gray-700" value={difficulty} onChange={(e)=>setDifficulty(e.target.value)}>
+                <option value="easy">Easy</option>
+                <option value="medium">Medium</option>
+                <option value="hard">Hard</option>
+                <option value="extreme">Extreme</option>
+              </select>
+            </div>
+
+            <p className={`${wrongFlash ? "text-red-400 animate-pulse font-extrabold" : instructionColor} text-lg`}>
+              {message}
+            </p>
+
+            <div className="flex justify-center items-center min-h-[5.5rem]">
+              {targetColor && message.includes("Click") && (
+                <div className="flex gap-4">
+                  {shuffledColors.map((c) => (
+                    <button
+                      key={c}
+                      onClick={() => handleColorClick(c)}
+                      aria-label={`${c} box`}
+                      className={`w-16 h-16 ${{
+                        red: "bg-red-500",
+                        blue: "bg-blue-500",
+                        green: "bg-green-500",
+                      }[c]} cursor-pointer border-4 border-white shadow-lg rounded`}
+                      disabled={!startTime}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="w-full max-w-sm my-1">
+              <div className="h-px w-full bg-white/15" />
+            </div>
+
+            {score.length > 0 && (
+              <div className="w-full max-w-sm">
+                <h3 className="text-sm uppercase tracking-wide text-white/70">History (this run)</h3>
+                <ul className="text-sm space-y-1 text-white/90">
+                  {score.map((t, i) => (
+                    <li key={i} className="flex justify-between">
+                      <span>Round {i + 1}</span>
+                      <span className="flex items-center gap-1">
+                        {t} ms {i === bestIndex && <span aria-label="best round" title="Best this run">✨</span>}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {reactionTime !== null && (
+              <p className="text-xl font-semibold text-purple-300">Round {score.length}: {reactionTime} ms</p>
+            )}
+
+            {score.length > 0 && (
+              <div className="text-center text-pink-300">
+                <p className="text-lg">Rounds Played: {score.length}</p>
+                <p className="text-lg">Average Reaction: {averageScore} ms</p>
+              </div>
+            )}
+          </div>
+        );
+      }
+
+      const root = ReactDOM.createRoot(document.getElementById('root'));
+      root.render(<ReactionGame />);
+
+      // Register service worker
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('./sw.js').catch(()=>{});
+        });
+      }
+    </script>
+  </body>
+</html>
