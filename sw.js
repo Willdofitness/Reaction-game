@@ -1,5 +1,5 @@
 
-const CACHE_NAME = 'reaction-game-v1';
+const CACHE_NAME = 'reaction-game-v2';
 const ASSETS = [
   './',
   './index.html',
